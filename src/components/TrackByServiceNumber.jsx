@@ -41,7 +41,8 @@ const TrackByServiceNumber = ({ lang, onBack }) => {
             running: 'Running',
             scheduled: 'Scheduled',
             completed: 'Completed',
-            approximation: 'Approximation'
+            approximation: 'Approximation',
+            liveSync: 'Live Sync'
         },
         TAM: {
             title: 'சேவை எண் மூலம் கண்காணியுங்கள்',
@@ -74,15 +75,51 @@ const TrackByServiceNumber = ({ lang, onBack }) => {
             running: 'இயங்குகிறது',
             scheduled: 'திட்டமிடப்பட்டது',
             completed: 'முடிவடைந்தது',
-            approximation: 'தோராயமான நேரம்'
+            approximation: 'தோராயமான நேரம்',
+            liveSync: 'நேரடி புதுப்பிப்பு'
         }
     }[lang] || {
-        title: 'Track By Service Number', label: 'Enter Reservation / Service Number', placeholder: 'e.g. S2, E12, N5', search: 'Search Service', searching: 'Searching...', notFound: 'Service number not found. Please try another number like "S2" or "E12".', fetchError: 'Failed to fetch bus data. Please check your connection.', route: 'ROUTE', stops: 'STOPS', depot: 'Depot Name', status: 'Status', from: 'From', to: 'To', busType: 'Bus Type', originDate: 'Schedule Origin Date', start: 'Scheduled Start', end: 'Scheduled End', help: 'Help Line', updated: 'Last Updated At', arrival: 'Arrival', stopName: 'Stop Name', departure: 'Departure', source: 'Source', destination: 'Destination', terminal: 'Terminal', origin: 'Origin', enroute: 'Enroute', running: 'Running', scheduled: 'Scheduled', completed: 'Completed', approximation: 'Approximation'
+        title: 'Track By Service Number', label: 'Enter Reservation / Service Number', placeholder: 'e.g. S2, E12, N5', search: 'Search Service', searching: 'Searching...', notFound: 'Service number not found. Please try another number like "S2" or "E12".', fetchError: 'Failed to fetch bus data. Please check your connection.', route: 'ROUTE', stops: 'STOPS', depot: 'Depot Name', status: 'Status', from: 'From', to: 'To', busType: 'Bus Type', originDate: 'Schedule Origin Date', start: 'Scheduled Start', end: 'Scheduled End', help: 'Help Line', updated: 'Last Updated At', arrival: 'Arrival', stopName: 'Stop Name', departure: 'Departure', source: 'Source', destination: 'Destination', terminal: 'Terminal', origin: 'Origin', enroute: 'Enroute', running: 'Running', scheduled: 'Scheduled', completed: 'Completed', approximation: 'Approximation', liveSync: 'Live Sync'
     };
 
     useEffect(() => {
         initializeBusDatabase();
     }, []);
+
+    const timeToMins = (timeStr) => {
+        if (!timeStr) return 0;
+        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!match) return 0;
+        let [ , h, m, ampm ] = match;
+        h = parseInt(h, 10);
+        m = parseInt(m, 10);
+        if (ampm.toUpperCase() === 'PM' && h < 12) h += 12;
+        if (ampm.toUpperCase() === 'AM' && h === 12) h = 0;
+        return h * 60 + m;
+    };
+
+    const processResults = (foundRoutes) => {
+        const now = new Date();
+        const istTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
+        const currentMins = istTime.getHours() * 60 + istTime.getMinutes();
+
+        return foundRoutes.map(route => {
+            if (!route.buses) return route;
+
+            const sortedBuses = [...route.buses].sort((a, b) => {
+                const getStatusScore = (bus) => {
+                    const start = timeToMins(bus.departure);
+                    const end = timeToMins(bus.arrival) || (start + 60);
+                    if (currentMins >= start && currentMins <= end) return 100; // Running
+                    if (currentMins < start) return 50; // Scheduled
+                    return 0; // Completed
+                };
+                return getStatusScore(b) - getStatusScore(a);
+            });
+
+            return { ...route, buses: sortedBuses };
+        });
+    };
 
     const handleSearch = async (e) => {
         if (e) e.preventDefault();
@@ -100,7 +137,7 @@ const TrackByServiceNumber = ({ lang, onBack }) => {
             );
 
             if (foundRoutes.length > 0) {
-                setResults(foundRoutes);
+                setResults(processResults(foundRoutes));
             } else {
                 setError(t.notFound);
             }
@@ -110,6 +147,17 @@ const TrackByServiceNumber = ({ lang, onBack }) => {
             setLoading(false);
         }
     };
+
+    // Auto-refresh every 10s if results exist
+    useEffect(() => {
+        let interval;
+        if (results.length > 0) {
+            interval = setInterval(() => {
+                setResults(prev => processResults(prev));
+            }, 10000);
+        }
+        return () => clearInterval(interval);
+    }, [results.length]);
 
     const clearSearch = () => {
         setServiceNo('');
@@ -128,6 +176,18 @@ const TrackByServiceNumber = ({ lang, onBack }) => {
                     <ChevronLeft size={24} color="#333" />
                 </button>
                 <h2 style={{ fontSize: '1.2rem', fontWeight: 600, margin: 0 }}>{t.title}</h2>
+                <AnimatePresence>
+                    {results.length > 0 && (
+                        <motion.div 
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.65rem', color: '#059669', backgroundColor: '#ecfdf5', padding: '4px 8px', borderRadius: '12px', border: '1px solid #d1fae5' }}
+                        >
+                            <div className="pulse" style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#059669' }}></div>
+                            {t.liveSync}
+                        </motion.div>
+                    )}
+                </AnimatePresence>
             </div>
 
             {/* Search Box */}
@@ -228,18 +288,6 @@ const TrackByServiceNumber = ({ lang, onBack }) => {
                                     const now = new Date();
                                     const istTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
                                     const currentMins = istTime.getHours() * 60 + istTime.getMinutes();
-
-                                    const timeToMins = (timeStr) => {
-                                        if (!timeStr) return 0;
-                                        const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-                                        if (!match) return 0;
-                                        let [ , h, m, ampm ] = match;
-                                        h = parseInt(h, 10);
-                                        m = parseInt(m, 10);
-                                        if (ampm.toUpperCase() === 'PM' && h < 12) h += 12;
-                                        if (ampm.toUpperCase() === 'AM' && h === 12) h = 0;
-                                        return h * 60 + m;
-                                    };
 
                                     const startMins = timeToMins(bus.departure);
                                     const endMins = timeToMins(bus.arrival) || (startMins + 60);
@@ -376,7 +424,7 @@ const TrackByServiceNumber = ({ lang, onBack }) => {
                                                     return (
                                                         <div key={sIdx} style={{ 
                                                             display: 'grid', 
-                                                            gridTemplateColumns: '80px 1fr 80px', 
+                                                            gridTemplateColumns: '88px 1fr 88px', 
                                                             minHeight: '85px',
                                                             padding: '0 15px' 
                                                         }}>

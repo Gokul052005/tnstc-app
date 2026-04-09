@@ -822,9 +822,6 @@ const RoutePlannerDatabase = ({ lang, onBack }) => {
                                                     <div style={{ fontSize: '0.85rem', color: '#6A7E8F', marginBottom: '8px' }}>
                                                         {t.depot}: {bus.depot}
                                                     </div>
-```javascript
-// No Changes to line 763
-```
 
                                                     <div
                                                         onClick={() => toggleBus(`${route.id}-${bus.tripNo}`)}
@@ -886,47 +883,73 @@ const RoutePlannerDatabase = ({ lang, onBack }) => {
                                                                             const isStartEnd = (idx === 0) || (idx === (toIndex - fromIndex));
                                                                             
                                                                             return (
-                                                                                <div key={stopName} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
-                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', whiteSpace: 'nowrap' }}>
-                                                                                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: isStartEnd ? (isPast ? '#64748B' : 'var(--primary)') : '#A9BFCC' }}></div>
-                                                                                        <span style={{ fontSize: '0.95rem', color: isStartEnd ? (isPast ? '#455768' : '#1D2D3A') : '#455768', fontWeight: isStartEnd ? 600 : 400 }}>{stopName}</span>
-                                                                                    </div>
-
-                                                                                        {/* Bus Road Pattern with Running Animation */}
+                                                                                <div key={stopName} style={{ 
+                                                                                    display: 'grid', 
+                                                                                    gridTemplateColumns: 'minmax(100px, 1.5fr) 1fr 85px', 
+                                                                                    alignItems: 'center', 
+                                                                                    gap: '8px',
+                                                                                    padding: '4px 0'
+                                                                                }}>
+                                                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                                                                         <div style={{ 
-                                                                                            flex: 1, 
-                                                                                            height: '28px', 
-                                                                                            display: 'flex',
-                                                                                            alignItems: 'center',
-                                                                                            position: 'relative',
-                                                                                            margin: '0 8px',
-                                                                                            overflow: 'hidden'
-                                                                                        }}>
-                                                                                            <div style={{
-                                                                                                position: 'absolute',
-                                                                                                left: 0,
-                                                                                                right: 0,
-                                                                                                top: '55%',
-                                                                                                borderBottom: '2px dashed #CBD5E1',
-                                                                                                zIndex: 0
-                                                                                            }}></div>
-                                                                                            <motion.div 
-                                                                                                animate={{ backgroundPositionX: ['120px', '0px'] }}
-                                                                                                transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
-                                                                                                style={{ 
-                                                                                                    width: '100%',
-                                                                                                    height: '100%', 
-                                                                                                    backgroundImage: 'url(/bus_pattern.png)', 
-                                                                                                    backgroundRepeat: 'repeat-x', 
-                                                                                                    backgroundSize: '45px auto', 
-                                                                                                    backgroundPosition: 'center',
-                                                                                                    zIndex: 1,
-                                                                                                    opacity: isPast ? 0.3 : 1
-                                                                                                }}
-                                                                                            />
-                                                                                        </div>
-
-                                                                                    <span style={{ fontSize: '0.95rem', fontWeight: isStartEnd ? 700 : 600, color: isStartEnd ? 'var(--primary)' : '#2A3E50', whiteSpace: 'nowrap' }}>{mappedTime}</span>
+                                                                                            width: '8px', 
+                                                                                            height: '8px', 
+                                                                                            flexShrink: 0,
+                                                                                            borderRadius: '50%', 
+                                                                                            backgroundColor: isStartEnd ? (isPast ? '#64748B' : 'var(--primary)') : '#A9BFCC' 
+                                                                                        }}></div>
+                                                                                        <span style={{ 
+                                                                                            fontSize: '0.85rem', 
+                                                                                            color: isStartEnd ? (isPast ? '#455768' : '#1D2D3A') : '#455768', 
+                                                                                            fontWeight: isStartEnd ? 600 : 400,
+                                                                                            whiteSpace: 'nowrap',
+                                                                                            overflow: 'hidden',
+                                                                                            textOverflow: 'ellipsis'
+                                                                                        }} title={stopName}>
+                                                                                            {stopName}
+                                                                                        </span>
+                                                                                    </div>
+                                                                                    
+                                                                                    <div style={{ 
+                                                                                        height: '24px', 
+                                                                                        position: 'relative', 
+                                                                                        overflow: 'hidden',
+                                                                                        display: 'flex',
+                                                                                        alignItems: 'center'
+                                                                                    }}>
+                                                                                        <div style={{
+                                                                                            position: 'absolute',
+                                                                                            left: 0,
+                                                                                            right: 0,
+                                                                                            top: '50%',
+                                                                                            borderBottom: '1px dashed #CBD5E1',
+                                                                                            zIndex: 0
+                                                                                        }}></div>
+                                                                                        <motion.div 
+                                                                                            animate={{ backgroundPositionX: ['120px', '0px'] }}
+                                                                                            transition={{ repeat: Infinity, duration: 8, ease: "linear" }}
+                                                                                            style={{ 
+                                                                                                width: '100%',
+                                                                                                height: '100%', 
+                                                                                                backgroundImage: 'url(/bus_pattern.png)', 
+                                                                                                backgroundRepeat: 'repeat-x', 
+                                                                                                backgroundSize: '40px auto', 
+                                                                                                backgroundPosition: 'center',
+                                                                                                zIndex: 1,
+                                                                                                opacity: isPast ? 0.3 : 1
+                                                                                            }}
+                                                                                        />
+                                                                                    </div>
+                                                                                    
+                                                                                    <span style={{ 
+                                                                                        fontSize: '0.85rem', 
+                                                                                        fontWeight: 700, 
+                                                                                        color: isStartEnd ? 'var(--primary)' : '#2A3E50',
+                                                                                        textAlign: 'right',
+                                                                                        whiteSpace: 'nowrap'
+                                                                                    }}>
+                                                                                        {mappedTime}
+                                                                                    </span>
                                                                                 </div>
                                                                             );
                                                                         })}

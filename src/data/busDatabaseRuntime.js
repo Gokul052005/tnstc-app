@@ -16,12 +16,12 @@ const DISTRICT_STOPS = {
     Kallakurichi: ['Kallakurichi', 'Sankarapuram', 'Chinnasalem', 'Ulundurpet', 'Rishivandiyam'],
     Kancheepuram: ['Kancheepuram', 'Uthiramerur', 'Walajabad', 'Kundrathur', 'Sriperumbudur'],
     Kanyakumari: ['Nagercoil', 'Marthandam', 'Kanyakumari', 'Colachel', 'Kuzhithurai'],
-    Karur: ['Karur', 'Kulithalai', 'Aravakurichi', 'Krishnarayapuram', 'Paramathi'],
+    Karur: ['Karur', 'Kulithalai', 'Aravakurichi', 'Krishrayapuram', 'Paramathi'],
     Krishnagiri: ['Krishnagiri', 'Hosur', 'Denkanikottai', 'Uthangarai', 'Bargur'],
     Madurai: ['Madurai Periyar', 'Melur', 'Usilampatti', 'Thirumangalam', 'Vadipatti'],
     Mayiladuthurai: ['Mayiladuthurai', 'Sirkazhi', 'Kuthalam', 'Tharangambadi', 'Vaitheeswarankoil'],
     Nagapattinam: ['Nagapattinam', 'Velankanni', 'Vedaranyam', 'Kilvelur', 'Thirukkuvalai'],
-    Namakkal: ['Namakkal', 'Tiruchengode', 'Rajam Theatre', 'Muniyappan Kovil', 'Palmadai', 'Thiru Nagar', 'Court', 'RS', 'Rasipuram', 'Kumarapalayam', 'Kaundanur', 'Pachampalayam', 'ICL', 'Paramathi Velur', 'Mohanur', 'Senthamangalam'],
+    Namakkal: ['Namakkal', 'Tiruchengode', 'Rajam Theatre', 'Muniyappan Kovil', 'Palmadai', 'Thiru Nagar', 'Court', 'RS', 'Rasipuram', 'Kumarapalayam', 'Goundanur', 'Pachampalayam', 'ICL', 'Paramathi Velur', 'Mohanur', 'Senthamangalam'],
     Nilgiris: ['Udhagamandalam', 'Coonoor', 'Kotagiri', 'Gudalur', 'Pandalur'],
     Perambalur: ['Perambalur', 'Kunnam', 'Veppanthattai', 'Alathur', 'Labbaikudikadu'],
     Pudukkottai: ['Pudukkottai', 'Aranthangi', 'Alangudi', 'Iluppur', 'Keeranur'],
@@ -52,7 +52,6 @@ const STOP_COORDS = {
     'Namakkal:Namakkal': { lat: 11.2200, lng: 78.1700 },
     'Namakkal:Tiruchengode': { lat: 11.3800, lng: 77.8900 },
     'Salem:Salem Junction': { lat: 11.6600, lng: 78.1500 },
-    // Padaiveedu/Pachampalayam Area
     'Namakkal:Pachampalayam': { lat: 11.5186, lng: 77.8767 },
     'Namakkal:Padaiveedu': { lat: 11.5173, lng: 77.8800 },
     'Erode:Pachampalayam': { lat: 11.5200, lng: 77.8820 },
@@ -66,7 +65,7 @@ const STOP_TALUKS = {
     'Namakkal:Pachampalayam': 'Kumarapalayam Taluk',
     'Namakkal:Kumarapalayam': 'Kumarapalayam Taluk',
     'Erode:Kumarapalayam': 'Kumarapalayam Circle',
-    'Namakkal:Kaundanur': 'Namakkal Taluk',
+    'Namakkal:Goundanur': 'Namakkal Taluk',
     'Namakkal:ICL': 'Kumarapalayam Industrial Area',
     'Salem:Sankagiri': 'Sankagiri Taluk',
     'Erode:Bhavani': 'Bhavani Taluk',
@@ -128,7 +127,6 @@ export const initializeBusDatabase = async () => {
         const snapshot = await get(child(dbRef, STOPS_STORE));
         const routesSnapshot = await get(child(dbRef, ROUTES_STORE));
         
-        // 1. Handle Stops Upserting
         let existingStops = snapshot.exists() ? snapshot.val() : {};
         let needsStopUpdate = false;
         
@@ -147,7 +145,6 @@ export const initializeBusDatabase = async () => {
             await set(ref(db, STOPS_STORE), existingStops);
         }
 
-        // 2. Handle Routes initializing
         if (!routesSnapshot.exists()) {
             const routesObj = {};
             ROUTE_SEED.forEach(route => {
@@ -175,6 +172,17 @@ const getAllFromStore = async (storeName) => {
     return [];
 };
 
+// New internal helper to guess district by stop name
+const guessDistrictForStop = (stopName) => {
+    const lowerName = stopName.trim().toLowerCase();
+    for (const [district, stops] of Object.entries(DISTRICT_STOPS)) {
+        if (stops.some(s => s.toLowerCase() === lowerName)) {
+            return district;
+        }
+    }
+    return 'No District';
+};
+
 export const getAllStops = async () => {
     const baseStopsArr = await getAllFromStore(STOPS_STORE);
     const routes = await getAllFromStore(ROUTES_STORE);
@@ -183,7 +191,13 @@ export const getAllStops = async () => {
     baseStopsArr.forEach((s) => {
         const stopName = typeof s?.name === 'string' ? s.name.trim() : '';
         if (!stopName) return;
-        stopMap.set(stopName.toLowerCase(), { ...s, name: stopName });
+        
+        let district = s.district;
+        if (!district || district === 'No District') {
+            district = guessDistrictForStop(stopName);
+        }
+        
+        stopMap.set(stopName.toLowerCase(), { ...s, name: stopName, district });
     });
     
     routes.forEach(route => {
@@ -193,13 +207,16 @@ export const getAllStops = async () => {
                 const trimmedStopName = stopName.trim();
                 if (!trimmedStopName) return;
                 const lower = trimmedStopName.toLowerCase();
+                
                 if (!stopMap.has(lower)) {
                     stopMap.set(lower, {
                         id: `AutoGend:${trimmedStopName}`, 
                         name: trimmedStopName,
-                        district: 'No District', 
+                        district: guessDistrictForStop(trimmedStopName), 
                         taluk: ''
                     });
+                } else if (stopMap.get(lower).district === 'No District') {
+                    stopMap.get(lower).district = guessDistrictForStop(trimmedStopName);
                 }
             });
         }
@@ -240,7 +257,7 @@ const timeToMinutes = (timeStr) => {
 const getCurrentISTMinutes = () => {
     const now = new Date();
     const istTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Kolkata"}));
-    return istTime.getHours() * 60 + istTime.getMinutes();
+    return istTime.getHours() * 60 + istTime.getMinutes() + istTime.getSeconds() / 60;
 };
 
 const normalizeStopName = (name) => {
@@ -258,7 +275,6 @@ export const findRoutesBetweenStops = async (fromName, toName) => {
             const forwardFromIndex = forwardStops.findIndex((stop) => normalizeStopName(stop) === normalizeStopName(fromName));
             const forwardToIndex = forwardStops.findIndex((stop) => normalizeStopName(stop) === normalizeStopName(toName));
 
-            // Strict Forward Matching
             if (forwardFromIndex !== -1 && forwardToIndex !== -1 && forwardFromIndex < forwardToIndex) {
                 return { 
                     ...route, 
@@ -274,42 +290,128 @@ export const findRoutesBetweenStops = async (fromName, toName) => {
 
 export const findTrackingResult = async (fromName, toName, userStopName) => {
     const routes = await findRoutesBetweenStops(fromName, toName);
-    const matchingRoute = routes.find((route) =>
-        route.orderedStops.some((stop) => normalizeStopName(stop) === normalizeStopName(userStopName))
-    ) ?? routes[0];
-
-    if (!matchingRoute) {
-        return null;
-    }
-
-    const routeStops = matchingRoute.orderedStops;
-    const fromIndex = routeStops.findIndex((stop) => normalizeStopName(stop) === normalizeStopName(fromName));
-    const userIndex = routeStops.findIndex((stop) => normalizeStopName(stop) === normalizeStopName(userStopName));
-    const passedStops = userIndex > fromIndex
-        ? routeStops.slice(fromIndex, userIndex)
-        : routeStops.slice(fromIndex, Math.max(fromIndex + 1, routeStops.length - 1));
-    const currentLocation = passedStops[passedStops.length - 1] ?? fromName;
-    const hopsRemaining = userIndex > fromIndex ? userIndex - fromIndex : 1;
-    const etaMinutes = hopsRemaining * 9;
-
     const now = getCurrentISTMinutes();
+
+    let bestMatch = null;
+
+    const routeScored = routes.map(route => {
+        const routeStops = route.orderedStops;
+        const userIndex = routeStops.findIndex((stop) => normalizeStopName(stop) === normalizeStopName(userStopName));
+        if (userIndex === -1) return null;
+
+        let activeBus = null;
+        let upcomingBus = null;
+        let minFutureDiff = Infinity;
+
+        route.buses.forEach(bus => {
+            const depMins = timeToMinutes(bus.departure);
+            const arrivalMins = timeToMinutes(bus.arrival);
+            if (now >= depMins && now <= arrivalMins) {
+                activeBus = bus;
+            }
+            const diff = depMins - now;
+            if (diff > 0 && diff < minFutureDiff) {
+                minFutureDiff = diff;
+                upcomingBus = bus;
+            }
+        });
+
+        const selectedBus = activeBus || upcomingBus || (route.buses.length > 0 ? route.buses[route.buses.length - 1] : null);
+        if (!selectedBus) return null;
+
+        const isLive = activeBus === selectedBus && activeBus !== null;
+        const isUpcoming = !isLive && upcomingBus === selectedBus && upcomingBus !== null;
+
+        return {
+            route,
+            selectedBus,
+            isLive,
+            isUpcoming,
+            userIndex,
+            score: isLive ? 100 : (isUpcoming ? 50 : 0)
+        };
+    }).filter(Boolean).sort((a,b) => b.score - a.score);
+
+    bestMatch = routeScored[0];
+
+    if (!bestMatch) return null;
+
+    const { route: matchingRoute, selectedBus: activeBus, isLive, isUpcoming, userIndex } = bestMatch;
+    const routeStops = matchingRoute.orderedStops;
+    const tripDepMins = timeToMinutes(activeBus.departure);
+    const tripArrMins = timeToMinutes(activeBus.arrival);
+    
+    // Helper to get exact minutes for a stop
+    const getStopArrivalMins = (stop, idx) => {
+        if (idx === 0) return tripDepMins;
+        if (idx === routeStops.length - 1) return tripArrMins;
+        if (activeBus.stopTimings && activeBus.stopTimings[stop]) {
+            return timeToMinutes(activeBus.stopTimings[stop]);
+        }
+        let prevAnchorIdx = 0, nextAnchorIdx = routeStops.length - 1;
+        for (let i = idx - 1; i >= 0; i--) {
+            if (activeBus.stopTimings && activeBus.stopTimings[routeStops[i]]) { prevAnchorIdx = i; break; }
+        }
+        for (let i = idx + 1; i < routeStops.length; i++) {
+            if (activeBus.stopTimings && activeBus.stopTimings[routeStops[i]]) { nextAnchorIdx = i; break; }
+        }
+        const prevTime = prevAnchorIdx === 0 ? tripDepMins : timeToMinutes(activeBus.stopTimings[routeStops[prevAnchorIdx]]);
+        const nextTime = nextAnchorIdx === routeStops.length - 1 ? tripArrMins : timeToMinutes(activeBus.stopTimings[routeStops[nextAnchorIdx]]);
+        const idxDiff = nextAnchorIdx - prevAnchorIdx;
+        const timeDiff = nextTime - prevTime;
+        return prevTime + ((idx - prevAnchorIdx) / idxDiff) * timeDiff;
+    };
+    
+    const passedStops = [];
+    let currentLocation = routeStops[0];
+    let locationStatus = "At Station";
+
+    routeStops.forEach((stop, idx) => {
+        const stopArrivalMins = getStopArrivalMins(stop, idx);
+        if (now >= stopArrivalMins) {
+            passedStops.push(stop);
+            currentLocation = stop;
+            if (now > stopArrivalMins + 1) {
+                locationStatus = "Departed";
+            } else {
+                locationStatus = "At Station";
+            }
+        }
+    });
+
+    const targetStopName = routeStops[userIndex];
+    const userArrivalMins = getStopArrivalMins(targetStopName, userIndex);
+    const etaMinutes = (isLive || isUpcoming) ? Math.max(0, userArrivalMins - now) : 0;
+
     const sortedTimings = [...matchingRoute.buses.map((bus) => bus.departure)].sort((a, b) => {
         const aMins = timeToMinutes(a);
         const bMins = timeToMinutes(b);
         const aDiff = aMins - now;
         const bDiff = bMins - now;
-        
-        if (aDiff >= 0 && bDiff < 0) return -1;
-        if (bDiff >= 0 && aDiff < 0) return 1;
-        if (aDiff >= 0 && bDiff >= 0) return aDiff - bDiff;
+        if (aDiff > 0 && bDiff <= 0) return -1;
+        if (bDiff > 0 && aDiff <= 0) return 1;
+        if (aDiff > 0 && bDiff > 0) return aDiff - bDiff;
         return aMins - bMins;
     });
+
+    const formatTimeMins = (mins) => {
+        const h = Math.floor(mins / 60) % 24;
+        const m = Math.floor(mins % 60);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        return `${(h % 12 || 12).toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
+    };
 
     return {
         busRoute: matchingRoute.id,
         timings: sortedTimings,
-        passedStops,
-        eta: `${etaMinutes} mins`,
+        passedStops, 
+        eta: (isLive || isUpcoming) ? (etaMinutes > 0 ? (etaMinutes < 1 ? "Arriving Soon" : `${Math.round(etaMinutes)} mins`) : "Arrived") : "Finished",
+        estimatedArrivalTime: formatTimeMins(userArrivalMins),
         currentLocation,
+        locationStatus,
+        userStopIndex: userIndex,
+        activeTrip: activeBus.departure,
+        status: isLive ? 'live' : (isUpcoming ? 'upcoming' : 'finished'),
+        orderedStops: routeStops
     };
 };

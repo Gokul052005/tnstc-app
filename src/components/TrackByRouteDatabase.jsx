@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, MapPin, Bus, ChevronLeft, ArrowRight, X } from 'lucide-react';
+import { Search, MapPin, Bus, ChevronLeft, ArrowRight, X, Clock } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     findTrackingResult,
@@ -38,10 +38,17 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
             activeRoute: 'Active Route',
             etaTo: 'ETA to',
             liveProgress: 'Live Progress',
-            currentLoc: 'Current location',
+            currentLoc: 'At Station',
+            departed: 'Departed',
             passed: 'Bus passed',
             approaching: 'Approaching...',
-            trackAnother: 'Track Another Route'
+            trackAnother: 'Track Another Route',
+            notStarted: 'Bus not started yet',
+            allFinished: 'All trips finished for today',
+            checkBack: 'Check back tomorrow for morning services',
+            liveUpdate: 'Live Sync',
+            estArrival: 'Expected at',
+            arrivingSoon: 'Arriving Soon!'
         },
         TAM: {
             title: 'வழித்தடம் மூலம் கண்காணி',
@@ -59,13 +66,20 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
             activeRoute: 'தற்போதைய வழித்தடம்',
             etaTo: 'இங்கு வருவதற்கான நேரம்:',
             liveProgress: 'நேரடி முன்னேற்றம்',
-            currentLoc: 'தற்போதைய இடம்',
+            currentLoc: 'நிலையத்தில் உள்ளது',
+            departed: 'கிளம்பிவிட்டது',
             passed: 'பேருந்து கடந்துவிட்டது',
             approaching: 'நெருங்குகிறது...',
-            trackAnother: 'மற்றொரு வழியைத் தேடுங்கள்'
+            trackAnother: 'மற்றொரு வழியைத் தேடுங்கள்',
+            notStarted: 'பேருந்து இன்னும் தொடங்கவில்லை',
+            allFinished: 'இன்றைய அனைத்து பயணங்களும் முடிந்துவிட்டன',
+            checkBack: 'காலை சேவைகளுக்கு நாளை மீண்டும் சரிபார்க்கவும்',
+            liveUpdate: 'நேரடி புதுப்பிப்பு',
+            estArrival: 'எதிர்பார்க்கப்படும் நேரம்',
+            arrivingSoon: 'விரைவில் வருகிறது!'
         }
     }[lang] || {
-        title: 'Track By Route', subtitle: 'Enter route details to see live bus progress and arrival timings.', from: 'From', to: 'To', userStop: 'Your Stop Name', fromPlaceholder: 'Departure Station', toPlaceholder: 'Destination Station', userStopPlaceholder: 'e.g. Pachampalayam', showMe: 'Show Me', loading: 'Loading Database...', fillFields: 'Please fill all fields', noMatching: 'No matching route found in the current database', activeRoute: 'Active Route', etaTo: 'ETA to', liveProgress: 'Live Progress', currentLoc: 'Current location', passed: 'Bus passed', approaching: 'Approaching...', trackAnother: 'Track Another Route'
+        title: 'Track By Route', subtitle: 'Enter route details to see live bus progress and arrival timings.', from: 'From', to: 'To', userStop: 'Your Stop Name', fromPlaceholder: 'Departure Station', toPlaceholder: 'Destination Station', userStopPlaceholder: 'e.g. Pachampalayam', showMe: 'Show Me', loading: 'Loading Database...', fillFields: 'Please fill all fields', noMatching: 'No matching route found in the current database', activeRoute: 'Active Route', etaTo: 'ETA to', liveProgress: 'Live Progress', currentLoc: 'At Station', departed: 'Departed', passed: 'Bus passed', approaching: 'Approaching...', trackAnother: 'Track Another Route', notStarted: 'Bus not started yet', liveUpdate: 'Live Sync', estArrival: 'Expected at', arrivingSoon: 'Arriving Soon!'
     };
 
     useEffect(() => {
@@ -167,6 +181,24 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
 
         setResults(nextResults);
     };
+
+    // Auto-refresh logic (every 10 seconds)
+    useEffect(() => {
+        let interval;
+        if (results && (results.status === 'live' || results.status === 'upcoming')) {
+            interval = setInterval(async () => {
+                const nextResults = await findTrackingResult(
+                    selectedFrom.name,
+                    selectedTo.name,
+                    selectedUserStop.name
+                );
+                if (nextResults) {
+                    setResults(nextResults);
+                }
+            }, 10000);
+        }
+        return () => clearInterval(interval);
+    }, [results, selectedFrom, selectedTo, selectedUserStop]);
 
     const renderSuggestions = () => (
         <AnimatePresence>
@@ -337,13 +369,39 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
                             </div>
                             <div style={{ textAlign: 'right' }}>
                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-light)' }}>{t.etaTo} {selectedUserStop?.name ?? userStop}</span>
-                                <h3 style={{ margin: 0, color: 'var(--success)' }}>{results.eta}</h3>
+                                <h3 style={{ margin: 0, color: results.eta === "Arrived" || results.eta === "Arriving Soon" ? 'var(--success)' : (results.status === 'live' ? 'var(--warning)' : 'var(--text)') }}>{results.eta}</h3>
+                                {results.estimatedArrivalTime && (
+                                    <div style={{ 
+                                        fontSize: '0.7rem', 
+                                        color: 'var(--text-light)', 
+                                        display: 'flex', 
+                                        alignItems: 'center', 
+                                        justifyContent: 'flex-end', 
+                                        gap: '4px',
+                                        marginTop: '2px'
+                                    }}>
+                                        <Clock size={12} /> {t.estArrival} {results.estimatedArrivalTime}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '5px', overflowX: 'auto', marginBottom: '5px' }}>
+                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '5px', padding: '5px 0' }}>
                             {results.timings.map((tm) => (
-                                <div key={tm} style={{ backgroundColor: '#f0f2f5', padding: '6px 12px', borderRadius: '15px', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
+                                <div 
+                                    key={tm} 
+                                    style={{ 
+                                        backgroundColor: tm === results.activeTrip ? 'var(--primary)' : '#f0f2f5', 
+                                        color: tm === results.activeTrip ? 'white' : 'var(--text-light)',
+                                        padding: '6px 14px', 
+                                        borderRadius: '20px', 
+                                        fontSize: '0.75rem', 
+                                        fontWeight: tm === results.activeTrip ? 700 : 500,
+                                        whiteSpace: 'nowrap',
+                                        boxShadow: tm === results.activeTrip ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                                        transition: 'all 0.3s ease'
+                                    }}
+                                >
                                     {tm}
                                 </div>
                             ))}
@@ -351,39 +409,101 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
                     </div>
 
                     <div className="card">
-                        <h4 style={{ fontSize: '0.9rem', marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <Bus size={18} color="var(--primary)" /> {t.liveProgress}
-                        </h4>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                            <h4 style={{ fontSize: '0.9rem', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Bus size={18} color="var(--primary)" /> {t.liveProgress}
+                            </h4>
+                            {results.status === 'live' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.7rem', color: 'var(--success)', fontWeight: 600 }}>
+                                    <div className="pulse" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--success)' }}></div>
+                                    {t.liveUpdate}
+                                </div>
+                            )}
+                        </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0', position: 'relative' }}>
-                            {results.passedStops.map((stop, i) => (
-                                <div key={stop} style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', minHeight: '60px' }}>
-                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                        <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: 'var(--success)' }}></div>
-                                        {i < results.passedStops.length - 1 && (
-                                            <div style={{ width: 2, height: '48px', backgroundColor: 'var(--success)' }}></div>
-                                        )}
-                                    </div>
-                                    <div style={{ paddingBottom: '15px' }}>
-                                        <div style={{ fontSize: '0.85rem', fontWeight: 500 }}>{stop}</div>
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--success)' }}>
-                                            {stop === results.currentLocation ? t.currentLoc : t.passed}
-                                        </div>
-                                    </div>
+                            {results.status === 'finished' ? (
+                                <div style={{ padding: '20px', textAlign: 'center', backgroundColor: '#f8fafc', borderRadius: '12px' }}>
+                                    <div style={{ fontSize: '0.9rem', color: '#64748B', fontWeight: 500 }}>{t.allFinished}</div>
+                                    <div style={{ fontSize: '0.75rem', color: '#94A3B8' }}>{t.checkBack}</div>
                                 </div>
-                            ))}
-
-                            <div style={{ display: 'flex', gap: '15px', alignItems: 'flex-start' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                                    <div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid var(--primary)', backgroundColor: 'white', position: 'relative', zIndex: 2 }}>
-                                        <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 6, height: 6, borderRadius: '50%', backgroundColor: 'var(--primary)' }}></div>
+                            ) : results.status === 'upcoming' ? (
+                                <div style={{ marginBottom: '20px' }}>
+                                    <div style={{ backgroundColor: '#F0F9FF', color: '#0369A1', padding: '12px', borderRadius: '10px', fontSize: '0.85rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', border: '1px solid #BAE6FD' }}>
+                                        <div style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: '#0EA5E9' }}></div>
+                                        Next bus starts at {results.activeTrip}
+                                    </div>
+                                    <div style={{ margin: '20px 0 20px 15px', borderLeft: '2px dashed #CBD5E1', paddingLeft: '25px', position: 'relative' }}>
+                                        <div style={{ position: 'absolute', left: '-6px', top: '0', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#CBD5E1' }}></div>
+                                        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{selectedUserStop?.name ?? userStop}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Expected arrival: ~{results.activeTrip}</div>
                                     </div>
                                 </div>
-                                <div style={{ paddingBottom: '15px' }}>
-                                    <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{selectedUserStop?.name ?? userStop}</div>
-                                    <div style={{ fontSize: '0.75rem', color: 'var(--primary)', fontWeight: 500 }}>{t.approaching}</div>
-                                </div>
-                            </div>
+                            ) : (
+                                <>
+                                    {results.orderedStops.map((stop, i) => {
+                                        const isPassed = results.passedStops.includes(stop);
+                                        const isCurrent = stop === results.currentLocation;
+                                        const isTarget = i === results.userStopIndex;
+                                        const isDepartedStatus = results.locationStatus === "Departed";
+                                        const isArrivingSoon = isTarget && results.eta === "Arriving Soon";
+                                        
+                                        const iconColor = isPassed ? '#EF4444' : (isCurrent ? 'var(--primary)' : '#CBD5E1');
+                                        const lineColor = isPassed ? '#EF4444' : '#CBD5E1';
+                                        
+                                        return (
+                                            <div key={stop + i} style={{ display: 'flex', gap: '15px', alignItems: 'flex-start', minHeight: '60px' }}>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                    <div style={{ 
+                                                        width: isTarget || isCurrent ? 16 : 12, 
+                                                        height: isTarget || isCurrent ? 16 : 12, 
+                                                        borderRadius: '50%', 
+                                                        backgroundColor: (isCurrent || isArrivingSoon) ? 'white' : iconColor,
+                                                        border: (isCurrent || isTarget || isArrivingSoon) ? `2px solid ${isArrivingSoon ? 'var(--success)' : iconColor}` : 'none',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        position: 'relative',
+                                                        zIndex: 2
+                                                    }}>
+                                                        {(isCurrent || isTarget || isArrivingSoon) && (
+                                                            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: isArrivingSoon ? 'var(--success)' : iconColor }}></div>
+                                                        )}
+                                                        {isArrivingSoon && (
+                                                            <div className="pulse" style={{ position: 'absolute', width: '100%', height: '100%', borderRadius: '50%', border: '2px solid var(--success)', zIndex: -1 }}></div>
+                                                        )}
+                                                    </div>
+                                                    {i < results.orderedStops.length - 1 && (
+                                                        <motion.div 
+                                                            style={{ 
+                                                                width: 2, 
+                                                                height: '48px', 
+                                                                backgroundColor: lineColor,
+                                                                opacity: (isCurrent && isDepartedStatus) ? 0.6 : 1
+                                                            }}
+                                                            animate={(isCurrent && isDepartedStatus) ? { opacity: [1, 0.4, 1] } : {}}
+                                                            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
+                                                        ></motion.div>
+                                                    )}
+                                                </div>
+                                                <div style={{ paddingBottom: '15px' }}>
+                                                    <div style={{ 
+                                                        fontSize: '0.85rem', 
+                                                        fontWeight: isTarget || isCurrent || isArrivingSoon ? 700 : 500,
+                                                        color: isArrivingSoon ? 'var(--success)' : (isPassed ? '#EF4444' : (isCurrent ? 'var(--primary)' : '#1E293B'))
+                                                    }}>
+                                                        {stop} {isTarget && <span style={{ fontSize: '0.7rem', color: isArrivingSoon ? 'var(--success)' : 'var(--primary)', marginLeft: '5px' }}>(Your Stop)</span>}
+                                                    </div>
+                                                    <div style={{ fontSize: '0.7rem', color: isArrivingSoon ? 'var(--success)' : (isPassed ? '#EF4444' : (isCurrent ? 'var(--primary)' : '#94A3B8')) }}>
+                                                        {isCurrent ? (isDepartedStatus ? t.departed : t.currentLoc) : (isPassed ? t.passed : (isArrivingSoon ? t.arrivingSoon : ''))}
+                                                        {isTarget && !isPassed && !isCurrent && !isArrivingSoon && t.approaching}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </>
+                            )}
                         </div>
                     </div>
 

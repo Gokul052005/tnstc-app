@@ -101,13 +101,11 @@ const AdminDashboard = ({ onBack }) => {
         setLoading(true);
         setMessage('');
         try {
-            // Priority: dbKey (internal firebase key), then fallback to uniqueKey derivation if somehow missing
             const keyToDelete = dbKey || `${routeInfo.id}_${routeInfo.from}_${routeInfo.to}`.replace(/[.#$[\] /]/g, '_');
             const routeRef = ref(db, `routes/${keyToDelete}`);
             await remove(routeRef);
             setMessage(`Success! Route ${routeInfo.id} deleted.`);
             
-            // If we are currently editing this route, reset the form
             if (routeId === routeInfo.id) {
                 setRouteId('');
                 setFrom('');
@@ -143,7 +141,6 @@ const AdminDashboard = ({ onBack }) => {
 
         const parsedStops = stopsStr.split(',').map(s => s.trim()).filter(s => s);
         
-        // Auto-fix: ensure From and To are safely in the stops list, only if they aren't completely blank
         if (parsedStops.length > 0 && from.trim() && to.trim()) {
             if (parsedStops[0].toLowerCase() !== from.toLowerCase().trim()) {
                 parsedStops.unshift(from.trim());
@@ -165,14 +162,12 @@ const AdminDashboard = ({ onBack }) => {
         setMessage('');
 
         try {
-            // SAFE SPLIT KEY: Service ID + From + To
             const uniqueKey = `${routeId}_${from.trim()}_${to.trim()}`.replace(/[.#$[\] /]/g, '_');
             const routeRef = ref(db, `routes/${uniqueKey}`);
             await set(routeRef, routeData);
             
             setMessage(`Success! Service ${routeId} from ${from} to ${to} saved separately.`);
             
-            // Refresh list
             const snapshot = await get(ref(db, 'routes'));
             if (snapshot.exists()) {
                 setExistingRoutes(Object.entries(snapshot.val()).map(([key, val]) => ({
@@ -180,7 +175,6 @@ const AdminDashboard = ({ onBack }) => {
                 })));
             }
 
-            // Reset
             setRouteId('');
             setFrom('');
             setTo('');
@@ -227,7 +221,6 @@ const AdminDashboard = ({ onBack }) => {
                         position: 'relative'
                     }}
                 >
-                    {/* Official Logo at Top */}
                     <div style={{
                         position: 'absolute',
                         top: '-45px',
@@ -316,8 +309,6 @@ const AdminDashboard = ({ onBack }) => {
                             boxShadow: '0 10px 15px -3px rgba(29, 78, 216, 0.3)',
                             transition: 'transform 0.2s, background-color 0.2s'
                         }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1E40AF'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1D4ED8'}
                     >
                         Unlock Dashboard
                     </button>
@@ -387,10 +378,29 @@ const AdminDashboard = ({ onBack }) => {
             <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto', paddingBottom: '100px' }}>
                 {activeTab === 'routes' ? (
                 <div style={{ backgroundColor: 'white', padding: '24px', borderRadius: '16px', boxShadow: '0 4px 15px rgba(0,0,0,0.05)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <h2 style={{ fontSize: '1.3rem', margin: 0, color: '#1D2D3A' }}>Add / Edit Route</h2>
+                    <div style={{ 
+                        display: 'flex', 
+                        flexWrap: 'wrap', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center', 
+                        gap: '15px',
+                        marginBottom: '20px' 
+                    }}>
+                        <h2 style={{ fontSize: '1.2rem', margin: 0, color: '#1D2D3A', minWidth: '150px' }}>Add / Edit Route</h2>
                         <select 
-                            style={{ padding: '8px 12px', border: '1px solid #ddd', borderRadius: '8px', fontSize: '0.9rem', outline: 'none', cursor: 'pointer', backgroundColor: '#F8FBFF', color: 'var(--primary)', fontWeight: 500 }}
+                            style={{ 
+                                padding: '8px 12px', 
+                                border: '1px solid #ddd', 
+                                borderRadius: '8px', 
+                                fontSize: '0.85rem', 
+                                outline: 'none', 
+                                cursor: 'pointer', 
+                                backgroundColor: '#F8FBFF', 
+                                color: 'var(--primary)', 
+                                fontWeight: 500,
+                                flex: '1',
+                                minWidth: '200px'
+                            }}
                             onChange={(e) => {
                                 const matched = existingRoutes.find(r => (r.dbKey || r.id) === e.target.value);
                                 if (matched) {
@@ -423,7 +433,7 @@ const AdminDashboard = ({ onBack }) => {
                         <label style={labelStyle}>Route ID / Service No</label>
                         <input style={inputStyle} value={routeId} onChange={e => setRouteId(e.target.value)} placeholder="e.g. M1, 4112, E15" required />
                         
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: '15px' }}>
                             <div>
                                 <label style={labelStyle}>Origin From</label>
                                 <input style={inputStyle} value={from} onChange={e => setFrom(e.target.value)} placeholder="e.g. Madurai" required />
@@ -464,15 +474,28 @@ const AdminDashboard = ({ onBack }) => {
                                         )}
                                     </div>
                                     
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
-                                        <input style={{...inputStyle, marginBottom: 0}} placeholder="Trip No (e.g. 5370)" value={bus.tripNo} onChange={e => handleBusChange(index, 'tripNo', e.target.value)} required />
-                                        <select style={{...inputStyle, marginBottom: 0, paddingRight: '5px'}} value={bus.serviceType} onChange={e => handleBusChange(index, 'serviceType', e.target.value)}>
-                                            <option>TNSTC TOWN</option>
-                                            <option>TNSTC EXPRESS</option>
-                                            <option>TNSTC ULTRA</option>
-                                        </select>
-                                        <input style={{...inputStyle, marginBottom: 0}} placeholder="Depot Name" value={bus.depot} onChange={e => handleBusChange(index, 'depot', e.target.value)} />
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '15px' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: '0.75rem', color: '#6A7E8F', marginBottom: '4px' }}>Trip No</span>
+                                                <input style={{...inputStyle, marginBottom: 0}} placeholder="e.g. 5370" value={bus.tripNo} onChange={e => handleBusChange(index, 'tripNo', e.target.value)} required />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: '0.75rem', color: '#6A7E8F', marginBottom: '4px' }}>Service Type</span>
+                                                <select style={{...inputStyle, marginBottom: 0, paddingRight: '5px'}} value={bus.serviceType} onChange={e => handleBusChange(index, 'serviceType', e.target.value)}>
+                                                    <option>TNSTC TOWN</option>
+                                                    <option>TNSTC EXPRESS</option>
+                                                    <option>TNSTC ULTRA</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                            <span style={{ fontSize: '0.75rem', color: '#6A7E8F', marginBottom: '4px' }}>Depot Name (Optional)</span>
+                                            <input style={{...inputStyle, marginBottom: 0}} placeholder="e.g. Erode Depot" value={bus.depot} onChange={e => handleBusChange(index, 'depot', e.target.value)} />
+                                        </div>
+
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                 <span style={{ fontSize: '0.75rem', color: '#6A7E8F', marginBottom: '4px' }}>Departure</span>
                                                 <input type="time" style={{...inputStyle, marginBottom: 0, padding: '12px 8px'}} value={to24Hour(bus.departure)} onChange={e => handleBusChange(index, 'departure', to12Hour(e.target.value))} required />
@@ -487,13 +510,13 @@ const AdminDashboard = ({ onBack }) => {
                                     {currentStops.length > 0 && (
                                         <div style={{ padding: '12px', backgroundColor: '#eef2f9', borderRadius: '8px' }}>
                                             <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#455768', marginBottom: '10px' }}>Exact Timings Per Stop (Optional)</div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '15px' }}>
                                                 {currentStops.map(stop => (
-                                                    <div key={stop} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                                        <span style={{ fontSize: '0.85rem', color: '#333', width: '80px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={stop}>{stop}</span>
+                                                    <div key={stop} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                        <span style={{ fontSize: '0.75rem', color: '#455768', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={stop}>{stop}</span>
                                                         <input 
                                                             type="time"
-                                                            style={{ ...inputStyle, marginBottom: 0, padding: '8px', fontSize: '0.85rem', flex: 1 }} 
+                                                            style={{ ...inputStyle, marginBottom: 0, padding: '10px 8px', fontSize: '0.9rem', width: '100%' }} 
                                                             value={to24Hour(bus.stopTimings?.[stop] || '')}
                                                             onChange={e => {
                                                                 const newBuses = [...buses];
@@ -525,7 +548,6 @@ const AdminDashboard = ({ onBack }) => {
                         </button>
                     </form>
 
-                    {/* Existing Routes List with Delete Option */}
                     <div style={{ marginTop: '40px', borderTop: '2px solid #f0f0f0', paddingTop: '20px' }}>
                         <h3 style={{ fontSize: '1.2rem', color: '#1D2D3A', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                             <Bus size={20} /> Total Active Routes ({existingRoutes.length})
