@@ -171,7 +171,14 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
         const nextResults = await findTrackingResult(
             selectedFrom.name,
             selectedTo.name,
-            selectedUserStop.name
+            selectedUserStop.name,
+            selectedFrom.district,
+            selectedTo.district,
+            selectedUserStop.district,
+            selectedFrom.taluk,
+            selectedTo.taluk,
+            selectedUserStop.taluk,
+            lang
         );
 
         if (!nextResults) {
@@ -190,7 +197,14 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
                 const nextResults = await findTrackingResult(
                     selectedFrom.name,
                     selectedTo.name,
-                    selectedUserStop.name
+                    selectedUserStop.name,
+                    selectedFrom.district,
+                    selectedTo.district,
+                    selectedUserStop.district,
+                    selectedFrom.taluk,
+                    selectedTo.taluk,
+                    selectedUserStop.taluk,
+                    lang
                 );
                 if (nextResults) {
                     setResults(nextResults);
@@ -436,7 +450,7 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
                                     <div style={{ margin: '20px 0 20px 15px', borderLeft: '2px dashed #CBD5E1', paddingLeft: '25px', position: 'relative' }}>
                                         <div style={{ position: 'absolute', left: '-6px', top: '0', width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#CBD5E1' }}></div>
                                         <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>{selectedUserStop?.name ?? userStop}</div>
-                                        <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Expected arrival: ~{results.activeTrip}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#64748B' }}>Expected arrival: ~{results.estimatedArrivalTime}</div>
                                     </div>
                                 </div>
                             ) : (
@@ -488,11 +502,22 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
                                                 </div>
                                                 <div style={{ paddingBottom: '15px' }}>
                                                     <div style={{ 
-                                                        fontSize: '0.85rem', 
-                                                        fontWeight: isTarget || isCurrent || isArrivingSoon ? 700 : 500,
-                                                        color: isArrivingSoon ? 'var(--success)' : (isPassed ? '#EF4444' : (isCurrent ? 'var(--primary)' : '#1E293B'))
+                                                        display: 'flex',
+                                                        justifyContent: 'space-between',
+                                                        alignItems: 'baseline',
+                                                        width: '100%',
+                                                        minWidth: '220px'
                                                     }}>
-                                                        {stop} {isTarget && <span style={{ fontSize: '0.7rem', color: isArrivingSoon ? 'var(--success)' : 'var(--primary)', marginLeft: '5px' }}>(Your Stop)</span>}
+                                                        <div style={{ 
+                                                            fontSize: '0.85rem', 
+                                                            fontWeight: isTarget || isCurrent || isArrivingSoon ? 700 : 500,
+                                                            color: isArrivingSoon ? 'var(--success)' : (isPassed ? '#EF4444' : (isCurrent ? 'var(--primary)' : '#1E293B'))
+                                                        }}>
+                                                            {stop} {isTarget && <span style={{ fontSize: '0.7rem', color: isArrivingSoon ? 'var(--success)' : 'var(--primary)', marginLeft: '5px' }}>(Your Stop)</span>}
+                                                        </div>
+                                                        <div style={{ fontSize: '0.75rem', color: isPassed ? '#EF4444' : '#64748B', fontWeight: 600 }}>
+                                                            {results.stopwatchTimes?.find(st => st.stop === stop)?.time}
+                                                        </div>
                                                     </div>
                                                     <div style={{ fontSize: '0.7rem', color: isArrivingSoon ? 'var(--success)' : (isPassed ? '#EF4444' : (isCurrent ? 'var(--primary)' : '#94A3B8')) }}>
                                                         {isCurrent ? (isDepartedStatus ? t.departed : t.currentLoc) : (isPassed ? t.passed : (isArrivingSoon ? t.arrivingSoon : ''))}

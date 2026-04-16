@@ -128,10 +128,18 @@ const RoutePlannerDatabase = ({ lang, onBack }) => {
                 const routesArr = routesSnapshot.exists() ? Object.values(routesSnapshot.val()) : [];
                 
                 const stopMap = new Map();
+                const namesWithDistricts = new Set();
                 baseStopsArr.forEach((s) => {
                     const stopName = typeof s?.name === 'string' ? s.name.trim() : '';
                     if (!stopName) return;
-                    stopMap.set(stopName.toLowerCase(), { ...s, name: stopName });
+                    
+                    if (s.district && s.district !== 'No District') {
+                        namesWithDistricts.add(stopName.toLowerCase());
+                    }
+
+                    // Use a unique key combining name and district to handle duplicates
+                    const uniqueKey = s.id?.toLowerCase() || `${s.district || 'No District'}:${stopName}`.toLowerCase();
+                    stopMap.set(uniqueKey, { ...s, name: stopName });
                 });
                 
                 routesArr.forEach(route => {
@@ -140,19 +148,24 @@ const RoutePlannerDatabase = ({ lang, onBack }) => {
                             if (typeof stopName !== 'string') return;
                             const trimmedStopName = stopName.trim();
                             if (!trimmedStopName) return;
+                            
                             const lower = trimmedStopName.toLowerCase();
-                            if (!stopMap.has(lower)) {
-                                stopMap.set(lower, {
-                                    id: `AutoGend:${trimmedStopName}`, 
-                                    name: trimmedStopName,
-                                    district: 'No District', 
-                                    taluk: ''
-                                });
+                            
+                            // Only add if this name hasn't been seen in ANY district yet
+                            if (!namesWithDistricts.has(lower)) {
+                                const id = `AutoGend:${trimmedStopName}`;
+                                if (!stopMap.has(id.toLowerCase())) {
+                                    stopMap.set(id.toLowerCase(), {
+                                        id, 
+                                        name: trimmedStopName,
+                                        district: 'No District', 
+                                        taluk: ''
+                                    });
+                                }
                             }
                         });
                     }
                 });
-
                 const finalStops = Array.from(stopMap.values()).sort((a, b) => a.name.localeCompare(b.name));
                 const finalDistricts = [...new Set(finalStops.map((stop) => stop.district).filter(d => d && d !== 'No District'))].sort();
                 
@@ -278,7 +291,14 @@ const RoutePlannerDatabase = ({ lang, onBack }) => {
         }
 
         try {
-            const rawRoutes = await findRoutesBetweenStops(selectedFrom.name, selectedTo.name);
+            const rawRoutes = await findRoutesBetweenStops(
+                selectedFrom.name, 
+                selectedTo.name, 
+                selectedFrom.district, 
+                selectedTo.district,
+                selectedFrom.taluk,
+                selectedTo.taluk
+            );
             
             // LOGICAL DEDUPLICATION: Group by ID, From, To to prevent Ghost/Duplicate entries from old data
             const deduplicatedMap = {};

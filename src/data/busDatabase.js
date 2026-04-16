@@ -156,6 +156,17 @@ export const getRoutes = async () => {
     return routes.sort((a, b) => a.id.localeCompare(b.id));
 };
 
+const formatDuration = (totalMinutes) => {
+    const mins = Math.round(totalMinutes);
+    if (mins < 1) return "Arriving Soon";
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    if (h > 0) {
+        return `${h}h ${m}m`;
+    }
+    return `${m} mins`;
+};
+
 export const formatStopOption = (stop) => {
     const parts = [stop.name];
     if (stop.taluk) parts.push(stop.taluk);
@@ -195,7 +206,7 @@ export const findTrackingResult = async (fromName, toName, userStopName) => {
         busRoute: matchingRoute.id,
         timings: matchingRoute.buses.map((bus) => bus.departure),
         passedStops,
-        eta: `${etaMinutes} mins`,
+        eta: formatDuration(etaMinutes),
         currentLocation,
     };
 };

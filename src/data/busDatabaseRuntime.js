@@ -188,6 +188,8 @@ export const getAllStops = async () => {
     const routes = await getAllFromStore(ROUTES_STORE);
     
     const stopMap = new Map();
+    const namesWithDistricts = new Set();
+    
     baseStopsArr.forEach((s) => {
         const stopName = typeof s?.name === 'string' ? s.name.trim() : '';
         if (!stopName) return;
@@ -197,7 +199,12 @@ export const getAllStops = async () => {
             district = guessDistrictForStop(stopName);
         }
         
-        stopMap.set(stopName.toLowerCase(), { ...s, name: stopName, district });
+        if (district && district !== 'No District') {
+            namesWithDistricts.add(stopName.toLowerCase());
+        }
+        
+        // Use ID as key to prevent overwriting duplicate names in different districts
+        stopMap.set(s.id?.toLowerCase() || `${district}:${stopName}`.toLowerCase(), { ...s, name: stopName, district });
     });
     
     routes.forEach(route => {
@@ -206,17 +213,23 @@ export const getAllStops = async () => {
                 if (typeof stopName !== 'string') return;
                 const trimmedStopName = stopName.trim();
                 if (!trimmedStopName) return;
+                
                 const lower = trimmedStopName.toLowerCase();
                 
-                if (!stopMap.has(lower)) {
-                    stopMap.set(lower, {
-                        id: `AutoGend:${trimmedStopName}`, 
-                        name: trimmedStopName,
-                        district: guessDistrictForStop(trimmedStopName), 
-                        taluk: ''
-                    });
-                } else if (stopMap.get(lower).district === 'No District') {
-                    stopMap.get(lower).district = guessDistrictForStop(trimmedStopName);
+                // Only add "No District" if this name hasn't been seen in ANY district yet
+                // and it's not already in the map as a specific ID
+                const alreadyHasDistrict = namesWithDistricts.has(lower);
+                
+                if (!alreadyHasDistrict) {
+                    const id = `AutoGend:${trimmedStopName}`;
+                    if (!stopMap.has(id.toLowerCase())) {
+                        stopMap.set(id.toLowerCase(), {
+                            id, 
+                            name: trimmedStopName,
+                            district: 'No District', 
+                            taluk: ''
+                        });
+                    }
                 }
             });
         }
@@ -260,13 +273,33 @@ const getCurrentISTMinutes = () => {
     return istTime.getHours() * 60 + istTime.getMinutes() + istTime.getSeconds() / 60;
 };
 
+const formatDuration = (totalMinutes, lang = 'ENG') => {
+    const mins = Math.round(totalMinutes);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    
+    if (lang === 'TAM') {
+        if (mins < 1) return "விரைவில் வருகிறது!";
+        if (h > 0) {
+            return `${h} மணி ${m} நிமி`;
+        }
+        return `${m} நிமிடம்`;
+    }
+
+    if (mins < 1) return "Arriving Soon";
+    if (h > 0) {
+        return `${h}h ${m}m`;
+    }
+    return `${m} mins`;
+};
+
 const normalizeStopName = (name) => {
     if (!name || typeof name !== 'string') return '';
     const normalized = name.trim().toLowerCase();
     return STOP_NAME_ALIASES[normalized] ?? normalized;
 };
 
-export const findRoutesBetweenStops = async (fromName, toName) => {
+export const findRoutesBetweenStops = async (fromName, toName, fromDistrict = null, toDistrict = null, fromTaluk = null, toTaluk = null) => {
     const routes = await getRoutes();
     
     return routes
@@ -276,6 +309,51 @@ export const findRoutesBetweenStops = async (fromName, toName) => {
             const forwardToIndex = forwardStops.findIndex((stop) => normalizeStopName(stop) === normalizeStopName(toName));
 
             if (forwardFromIndex !== -1 && forwardToIndex !== -1 && forwardFromIndex < forwardToIndex) {
+                // If districts are provided, verify if this route actually matches those districts
+                if (fromDistrict && toDistrict) {
+                   const routeStops = route.stops || [];
+                   const isFromMatch = districtHasStop(fromDistrict, fromName);
+                   const isToMatch = districtHasStop(toDistrict, toName);
+                   
+                   if (!isFromMatch || !isToMatch) return null;
+                   
+                   // WIN-BY-MAJORITY Logic for Ambiguous Stops
+                   // Calculate affinity scores for all potential identities of the stop
+                   const stopIdentities = getStopIdentities(toName);
+                   if (stopIdentities.length > 1) {
+                       let targetScore = 0;
+                       let maxCompetingScore = 0;
+                       let bestDistrict = '';
+
+                       stopIdentities.forEach(identity => {
+                           const score = getRouteAffinityScoreForDistrict(routeStops, identity.district);
+                           if (identity.district === toDistrict) {
+                               targetScore = score;
+                           } else if (score > maxCompetingScore) {
+                               maxCompetingScore = score;
+                           }
+                           if (score > (getRouteAffinityScoreForDistrict(routeStops, bestDistrict))) {
+                               bestDistrict = identity.district;
+                           }
+                       });
+
+                       // If S2 has 4 stops in Namakkal and only 1 in Erode, 
+                       // and the user wants Erode, we filter S2 out because it's a "Namakkal route"
+                       if (maxCompetingScore > targetScore) {
+                           return null;
+                       }
+                   }
+
+                   const fromNameAmbiguous = isStopAmbiguous(fromName);
+                   if (fromNameAmbiguous && fromDistrict !== 'No District') {
+                       const hasOtherStopInFromDist = routeStops.some(s => 
+                           normalizeStopName(s) !== normalizeStopName(fromName) && 
+                           districtHasStop(fromDistrict, s)
+                       );
+                       if (!hasOtherStopInFromDist) return null;
+                   }
+                }
+
                 return { 
                     ...route, 
                     direction: 'forward', 
@@ -288,8 +366,47 @@ export const findRoutesBetweenStops = async (fromName, toName) => {
         .filter(Boolean);
 };
 
-export const findTrackingResult = async (fromName, toName, userStopName) => {
-    const routes = await findRoutesBetweenStops(fromName, toName);
+// Internal helper for district-stop validation
+const districtHasStop = (district, stopName) => {
+    if (!district || district === 'No District') return true;
+    const stopsInDist = DISTRICT_STOPS[district] || [];
+    const normalizedTarget = normalizeStopName(stopName);
+    return stopsInDist.some(s => normalizeStopName(s) === normalizedTarget);
+};
+
+// Returns all {district, taluk} pairs for a stop name
+const getStopIdentities = (stopName) => {
+    const normalized = normalizeStopName(stopName);
+    const identities = [];
+    for (const district in DISTRICT_STOPS) {
+        if (DISTRICT_STOPS[district].some(s => normalizeStopName(s) === normalized)) {
+            identities.push({ district, taluk: STOP_TALUKS[`${district}:${stopName}`] || '' });
+        }
+    }
+    return identities;
+};
+
+// Scores a route based on how many of its stops belong to a district
+const getRouteAffinityScoreForDistrict = (routeStops, district) => {
+    if (!district) return 0;
+    return routeStops.reduce((score, stop) => {
+        return score + (districtHasStop(district, stop) ? 1 : 0);
+    }, 0);
+};
+
+// Check if a stop name exists in more than one district
+const isStopAmbiguous = (stopName) => {
+    return getStopIdentities(stopName).length > 1;
+};
+
+// Internal helper for taluk lookup
+const getStopTaluk = (district, stopName) => {
+    const id = `${district}:${stopName}`;
+    return STOP_TALUKS[id] || '';
+};
+
+export const findTrackingResult = async (fromName, toName, userStopName, fromDistrict = null, toDistrict = null, userStopDistrict = null, fromTaluk = null, toTaluk = null, userStopTaluk = null, lang = 'ENG') => {
+    const routes = await findRoutesBetweenStops(fromName, toName, fromDistrict, toDistrict, fromTaluk, toTaluk);
     const now = getCurrentISTMinutes();
 
     let bestMatch = null;
@@ -401,12 +518,18 @@ export const findTrackingResult = async (fromName, toName, userStopName) => {
         return `${(h % 12 || 12).toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${ampm}`;
     };
 
+    const stopwatchTimes = routeStops.map((stop, idx) => ({
+        stop,
+        time: formatTimeMins(getStopArrivalMins(stop, idx))
+    }));
+
     return {
         busRoute: matchingRoute.id,
         timings: sortedTimings,
         passedStops, 
-        eta: (isLive || isUpcoming) ? (etaMinutes > 0 ? (etaMinutes < 1 ? "Arriving Soon" : `${Math.round(etaMinutes)} mins`) : "Arrived") : "Finished",
+        eta: (isLive || isUpcoming) ? (etaMinutes > 0 ? (etaMinutes < 1 ? (lang === 'TAM' ? "விரைவில் வருகிறது!" : "Arriving Soon") : formatDuration(etaMinutes, lang)) : (lang === 'TAM' ? "வந்தது" : "Arrived")) : (lang === 'TAM' ? "முடிந்தது" : "Finished"),
         estimatedArrivalTime: formatTimeMins(userArrivalMins),
+        stopwatchTimes,
         currentLocation,
         locationStatus,
         userStopIndex: userIndex,
