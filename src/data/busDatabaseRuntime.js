@@ -535,6 +535,7 @@ export const findTrackingResult = async (fromName, toName, userStopName, fromDis
         userStopIndex: userIndex,
         activeTrip: activeBus.departure,
         status: isLive ? 'live' : (isUpcoming ? 'upcoming' : 'finished'),
-        orderedStops: routeStops
+        orderedStops: routeStops,
+        gpsId: activeBus.gpsId || null
     };
 };

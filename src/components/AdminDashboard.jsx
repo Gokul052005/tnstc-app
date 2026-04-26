@@ -20,7 +20,7 @@ const AdminDashboard = ({ onBack }) => {
     const currentStops = stopsStr.split(',').map(s => s.trim()).filter(s => s);
     
     const [buses, setBuses] = useState([
-        { tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '' }
+        { tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '', gpsId: '' }
     ]);
     
     const [loading, setLoading] = useState(false);
@@ -61,7 +61,7 @@ const AdminDashboard = ({ onBack }) => {
     }, [isAuthenticated]);
 
     const handleAddBus = () => {
-        setBuses([...buses, { tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '' }]);
+        setBuses([...buses, { tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '', gpsId: '' }]);
     };
 
     const handleRemoveBus = (index) => {
@@ -72,6 +72,44 @@ const AdminDashboard = ({ onBack }) => {
         const newBuses = [...buses];
         newBuses[index][field] = value;
         setBuses(newBuses);
+    };
+
+    const handleCheckGps = async (index) => {
+        const gpsId = buses[index].gpsId;
+        if (!gpsId) {
+            setMessage('Please enter a GPS ID to check.');
+            return;
+        }
+
+        try {
+            setLoading(true);
+            setMessage('Checking GPS ID...');
+            const gpsRef = ref(db, `gps_devices/${gpsId}`);
+            const gpsSnapshot = await get(gpsRef);
+
+            if (gpsSnapshot.exists()) {
+                const data = gpsSnapshot.val();
+                
+                if (data.routeId) setRouteId(data.routeId);
+                if (data.from) setFrom(data.from);
+                if (data.to) setTo(data.to);
+                if (data.stops && Array.isArray(data.stops)) setStopsStr(data.stops.join(', '));
+                
+                const newBuses = [...buses];
+                if (data.serviceNumber) newBuses[index].tripNo = data.serviceNumber;
+                if (data.serviceType) newBuses[index].serviceType = data.serviceType;
+                if (data.depot) newBuses[index].depot = data.depot;
+                setBuses(newBuses);
+
+                setMessage(`Success! GPS Verified! Populated data for ${gpsId} and live tracking panel enabled.`);
+            } else {
+                setMessage(`No GPS data found for ID: ${gpsId}`);
+            }
+        } catch (error) {
+            setMessage(`Error checking GPS: ${error.message}`);
+        } finally {
+            setLoading(false);
+        }
     };
 
     const to24Hour = (time12) => {
@@ -111,7 +149,7 @@ const AdminDashboard = ({ onBack }) => {
                 setFrom('');
                 setTo('');
                 setStopsStr('');
-                setBuses([{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '' }]);
+                setBuses([{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '', gpsId: '' }]);
             }
 
             // Refresh list
@@ -179,7 +217,7 @@ const AdminDashboard = ({ onBack }) => {
             setFrom('');
             setTo('');
             setStopsStr('');
-            setBuses([{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '' }]);
+            setBuses([{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '', gpsId: '' }]);
         } catch (error) {
             console.error('Error saving:', error);
             setMessage(`Error saving route: ${error.message}`);
@@ -408,7 +446,7 @@ const AdminDashboard = ({ onBack }) => {
                                     setFrom(matched.from || '');
                                     setTo(matched.to || '');
                                     setStopsStr(matched.stops ? matched.stops.join(', ') : '');
-                                    setBuses(matched.buses && matched.buses.length > 0 ? matched.buses : [{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '' }]);
+                                    setBuses(matched.buses && matched.buses.length > 0 ? matched.buses : [{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '', gpsId: '' }]);
                                     setMessage(`Loaded route ${matched.id} (${matched.from} to ${matched.to}) to edit.`);
                                 }
                             }}
@@ -490,9 +528,35 @@ const AdminDashboard = ({ onBack }) => {
                                             </div>
                                         </div>
 
-                                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                            <span style={{ fontSize: '0.75rem', color: '#6A7E8F', marginBottom: '4px' }}>Depot Name (Optional)</span>
-                                            <input style={{...inputStyle, marginBottom: 0}} placeholder="e.g. Erode Depot" value={bus.depot} onChange={e => handleBusChange(index, 'depot', e.target.value)} />
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: '0.75rem', color: '#6A7E8F', marginBottom: '4px' }}>Depot Name (Optional)</span>
+                                                <input style={{...inputStyle, marginBottom: 0}} placeholder="e.g. Erode Depot" value={bus.depot || ''} onChange={e => handleBusChange(index, 'depot', e.target.value)} />
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <span style={{ fontSize: '0.75rem', color: '#6A7E8F', marginBottom: '4px' }}>GPS ID (Optional)</span>
+                                                <div style={{ display: 'flex', gap: '8px' }}>
+                                                    <input style={{...inputStyle, marginBottom: 0, flex: 1}} placeholder="e.g. TN-1234" value={bus.gpsId || ''} onChange={e => handleBusChange(index, 'gpsId', e.target.value.toUpperCase())} />
+                                                    <button 
+                                                        type="button" 
+                                                        onClick={() => handleCheckGps(index)}
+                                                        disabled={loading}
+                                                        style={{ 
+                                                            padding: '0 12px', 
+                                                            backgroundColor: 'var(--primary)', 
+                                                            color: 'white', 
+                                                            border: 'none', 
+                                                            borderRadius: '8px', 
+                                                            cursor: loading ? 'not-allowed' : 'pointer',
+                                                            fontWeight: 600,
+                                                            transition: 'background-color 0.2s',
+                                                            opacity: loading ? 0.7 : 1
+                                                        }}
+                                                    >
+                                                        Check
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
 
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -508,27 +572,29 @@ const AdminDashboard = ({ onBack }) => {
                                     </div>
 
                                     {currentStops.length > 0 && (
-                                        <div style={{ padding: '12px', backgroundColor: '#eef2f9', borderRadius: '8px' }}>
-                                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#455768', marginBottom: '10px' }}>Exact Timings Per Stop (Optional)</div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '15px' }}>
-                                                {currentStops.map(stop => (
-                                                    <div key={stop} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
-                                                        <span style={{ fontSize: '0.75rem', color: '#455768', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={stop}>{stop}</span>
-                                                        <input 
-                                                            type="time"
-                                                            style={{ ...inputStyle, marginBottom: 0, padding: '10px 8px', fontSize: '0.9rem', width: '100%' }} 
-                                                            value={to24Hour(bus.stopTimings?.[stop] || '')}
-                                                            onChange={e => {
-                                                                const newBuses = [...buses];
-                                                                if (!newBuses[index].stopTimings) newBuses[index].stopTimings = {};
-                                                                newBuses[index].stopTimings[stop] = to12Hour(e.target.value);
-                                                                setBuses(newBuses);
-                                                            }}
-                                                        />
-                                                    </div>
-                                                ))}
+                                        <details style={{ backgroundColor: '#eef2f9', borderRadius: '8px' }}>
+                                            <summary style={{ padding: '12px', fontSize: '0.85rem', fontWeight: 600, color: '#455768', cursor: 'pointer' }}>Exact Timings Per Stop (Static Timings)</summary>
+                                            <div style={{ padding: '0 12px 12px 12px' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '15px' }}>
+                                                    {currentStops.map(stop => (
+                                                        <div key={stop} style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                                                            <span style={{ fontSize: '0.75rem', color: '#455768', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={stop}>{stop}</span>
+                                                            <input 
+                                                                type="time"
+                                                                style={{ ...inputStyle, marginBottom: 0, padding: '10px 8px', fontSize: '0.9rem', width: '100%' }} 
+                                                                value={to24Hour(bus.stopTimings?.[stop] || '')}
+                                                                onChange={e => {
+                                                                    const newBuses = [...buses];
+                                                                    if (!newBuses[index].stopTimings) newBuses[index].stopTimings = {};
+                                                                    newBuses[index].stopTimings[stop] = to12Hour(e.target.value);
+                                                                    setBuses(newBuses);
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
-                                        </div>
+                                        </details>
                                     )}
                                 </div>
                             ))}
@@ -572,7 +638,7 @@ const AdminDashboard = ({ onBack }) => {
                                                 setFrom(r.from || '');
                                                 setTo(r.to || '');
                                                 setStopsStr(r.stops ? r.stops.join(', ') : '');
-                                                setBuses(r.buses && r.buses.length > 0 ? r.buses : [{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '' }]);
+                                                setBuses(r.buses && r.buses.length > 0 ? r.buses : [{ tripNo: '', serviceType: 'TNSTC EXPRESS', depot: '', departure: '', arrival: '', gpsId: '' }]);
                                                 window.scrollTo({ top: 0, behavior: 'smooth' });
                                             }}
                                             style={{ padding: '6px 10px', backgroundColor: '#EBF4FF', color: 'var(--primary)', border: 'none', borderRadius: '6px', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer' }}

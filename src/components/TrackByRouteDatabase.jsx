@@ -400,26 +400,36 @@ const TrackByRouteDatabase = ({ lang, onBack }) => {
                             </div>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '5px', padding: '5px 0' }}>
-                            {results.timings.map((tm) => (
-                                <div 
-                                    key={tm} 
-                                    style={{ 
-                                        backgroundColor: tm === results.activeTrip ? 'var(--primary)' : '#f0f2f5', 
-                                        color: tm === results.activeTrip ? 'white' : 'var(--text-light)',
-                                        padding: '6px 14px', 
-                                        borderRadius: '20px', 
-                                        fontSize: '0.75rem', 
-                                        fontWeight: tm === results.activeTrip ? 700 : 500,
-                                        whiteSpace: 'nowrap',
-                                        boxShadow: tm === results.activeTrip ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
-                                        transition: 'all 0.3s ease'
-                                    }}
-                                >
-                                    {tm}
+                        {!results.gpsId ? (
+                            <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', marginBottom: '5px', padding: '5px 0' }}>
+                                {results.timings.map((tm) => (
+                                    <div 
+                                        key={tm} 
+                                        style={{ 
+                                            backgroundColor: tm === results.activeTrip ? 'var(--primary)' : '#f0f2f5', 
+                                            color: tm === results.activeTrip ? 'white' : 'var(--text-light)',
+                                            padding: '6px 14px', 
+                                            borderRadius: '20px', 
+                                            fontSize: '0.75rem', 
+                                            fontWeight: tm === results.activeTrip ? 700 : 500,
+                                            whiteSpace: 'nowrap',
+                                            boxShadow: tm === results.activeTrip ? '0 2px 8px rgba(0,0,0,0.1)' : 'none',
+                                            transition: 'all 0.3s ease'
+                                        }}
+                                    >
+                                        {tm}
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '10px', padding: '10px 15px', backgroundColor: '#eef2f9', borderRadius: '10px', border: '1px solid #dceaf7' }}>
+                                <div className="pulse" style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: 'var(--success)' }}></div>
+                                <div>
+                                    <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--primary)' }}>Real-Time GPS Tracking</div>
+                                    <div style={{ fontSize: '0.7rem', color: '#666' }}>ID: {results.gpsId}</div>
                                 </div>
-                            ))}
-                        </div>
+                            </div>
+                        )}
                     </div>
 
                     <div className="card">
